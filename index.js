@@ -32,10 +32,14 @@ async function loadMessages(dir)
 
 (async () =>
 {
-    // Create data loading directory
+    // Create data loading directory and csv directory
     try
     {
         await fs.mkdir('data');
+    } catch(ignored) {}
+    try
+    {
+        await fs.mkdir('csv');
     } catch(ignored) {}
     
     // Load tracked words into array of regex (case insensitive and global)
@@ -83,19 +87,34 @@ async function loadMessages(dir)
             authorArr.push(authors[id]);
         }
         
+        // Sort authors by rate and the instances by date
         authorArr = authorArr.map(author =>
         {
             const wordTotal = author.instances.reduce((acc, current) => acc + current.count, 0);
             const rate = wordTotal / author.total;
-            return {...author, wordTotal, rate};
+            return {
+                name: author.name,
+                total: author.total,
+                instances: author.instances.sort((a, b) => a.date - b.date),
+                wordTotal,
+                rate
+            };
         }).sort((a, b) => b.rate - a.rate);
         
-        console.group(`${word.source}:`);
-        for(const author of authorArr)
+        // Set up a time range
+        const earliest = authorArr.map(author => author.instances[0]).sort((a, b) => a.date - b.date)[0].date;
+        const latest = authorArr.map(author => author.instances[author.instances.length - 1])
+                                 .sort((a, b) => b.date - a.date)[0].date;
+        
+        console.log(`${word.source}:`);
+        console.table(authorArr.map(author =>
         {
-            console.log(`${author.name}: ${author.wordTotal} total (${(author.rate * 100).toFixed(2)}% of messages)`);
-        }
-        console.groupEnd();
+            return {
+                name: author.name,
+                total: author.wordTotal,
+                'rate %': Number((author.rate * 100).toFixed(2))
+            };
+        }));
         console.log('');
     }
 })();
