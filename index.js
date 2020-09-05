@@ -105,14 +105,36 @@ async function loadMessages(dir)
         const earliest = authorArr.map(author => author.instances[0]).sort((a, b) => a.date - b.date)[0].date;
         const latest = authorArr.map(author => author.instances[author.instances.length - 1])
                                  .sort((a, b) => b.date - a.date)[0].date;
+        const earliestWeek = new Date(earliest.getTime() - (earliest.getDay() * 24 * 60 * 60 * 1000));
+        const latestWeek = new Date(latest.getTime() - ((6 - latest.getDay()) * 24 * 60 * 60 * 1000));
+        
+        let currentWeek = new Date(earliestWeek.getTime());
+        let weeks = [];
+        while(currentWeek < latestWeek)
+        {
+            const nextWeek = new Date(currentWeek.getTime() + (7 * 24 * 60 * 60 * 1000));
+            weeks.push({
+                week: currentWeek.getTime(),
+                authors: authorArr.reduce((acc, current) =>
+                {
+                    acc[current.name] = current.instances
+                                                .filter(instance => (instance.date >= currentWeek && instance.date < nextWeek))
+                                                .reduce((acc, current) => acc + current.count, 0);
+                    return acc;
+                }, {})
+            });
+            currentWeek = nextWeek;
+        }
         
         console.log(`${word.source}:`);
         console.table(authorArr.map(author =>
         {
+            const apex = weeks.sort((a, b) => b.authors[author.name] - a.authors[author.name])[0];
             return {
                 name: author.name,
                 total: author.wordTotal,
-                'rate %': Number((author.rate * 100).toFixed(2))
+                'rate %': Number((author.rate * 100).toFixed(2)),
+                apex: `${apex.authors[author.name]} week of ${(new Date(apex.week)).toString().match(/.+?\d{4}/g)[0]}`
             };
         }));
         console.log('');
