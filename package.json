@@ -1,0 +1,22 @@
+{
+  "name": "message-trends",
+  "version": "1.0.0",
+  "description": "A way to find trending words in message listings",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/techchrism/message-trends.git"
+  },
+  "author": "Techdoodle",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/techchrism/message-trends/issues"
+  },
+  "homepage": "https://github.com/techchrism/message-trends#readme",
+  "dependencies": {
+    "walk": "^2.3.14"
+  }
+}
