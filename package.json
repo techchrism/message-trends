@@ -17,6 +17,8 @@
   },
   "homepage": "https://github.com/techchrism/message-trends#readme",
   "dependencies": {
+    "csv-stringify": "^5.5.1",
+    "sanitize-filename": "^1.6.3",
     "walk": "^2.3.14"
   }
 }

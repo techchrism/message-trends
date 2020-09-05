@@ -1,6 +1,8 @@
 const fs = require('fs').promises;
 const walk = require('walk');
 const path = require('path');
+const stringify = require('csv-stringify');
+const sanitize = require('sanitize-filename');
 
 async function loadMessages(dir)
 {
@@ -108,6 +110,7 @@ async function loadMessages(dir)
         const earliestWeek = new Date(earliest.getTime() - (earliest.getDay() * 24 * 60 * 60 * 1000));
         const latestWeek = new Date(latest.getTime() - ((6 - latest.getDay()) * 24 * 60 * 60 * 1000));
         
+        // Iterate through each week and add up the word instances in that week range
         let currentWeek = new Date(earliestWeek.getTime());
         let weeks = [];
         while(currentWeek < latestWeek)
@@ -125,6 +128,25 @@ async function loadMessages(dir)
             });
             currentWeek = nextWeek;
         }
+        
+        let csv = [['week', ...authorArr.map(author => author.name)]];
+        for(const week of weeks)
+        {
+            let weekData = [(new Date(week.week)).toString().match(/\w+?\s\d{2}\s\d{4}/)[0]];
+            for(const author in week.authors)
+            {
+                if(!week.authors.hasOwnProperty(author))
+                {
+                    continue;
+                }
+                weekData.push(week.authors[author]);
+            }
+            csv.push(weekData);
+        }
+        stringify(csv, async (err, output) =>
+        {
+            await fs.writeFile(path.join('csv', sanitize(word.source) + '.csv'), output);
+        });
         
         console.log(`${word.source}:`);
         console.table(authorArr.map(author =>
