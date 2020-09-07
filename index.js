@@ -32,6 +32,105 @@ async function loadMessages(dir)
     });
 }
 
+async function generateWordData(word, messages)
+{
+    let authors = {};
+    for(const message of messages)
+    {
+        if(!authors.hasOwnProperty(message.author.id))
+        {
+            authors[message.author.id] = {
+                name: message.author.name,
+                instances: [],
+                total: 0
+            };
+        }
+        authors[message.author.id].total++;
+        
+        const matches = message.content.match(word);
+        if(matches)
+        {
+            // If this message contains the word, store the date of the message and the word count in the message
+            authors[message.author.id].instances.push({
+                date: new Date(message.timestamp),
+                count: matches.length
+            });
+        }
+    }
+    
+    let authorArr = [];
+    for(const id in authors)
+    {
+        if(!authors.hasOwnProperty(id))
+        {
+            continue;
+        }
+        
+        authorArr.push(authors[id]);
+    }
+    
+    // Sort authors by rate and the instances by date
+    authorArr = authorArr.map(author =>
+    {
+        const wordTotal = author.instances.reduce((acc, current) => acc + current.count, 0);
+        const rate = wordTotal / author.total;
+        return {
+            name: author.name,
+            total: author.total,
+            instances: author.instances.sort((a, b) => a.date - b.date),
+            wordTotal,
+            rate
+        };
+    }).sort((a, b) => b.rate - a.rate);
+    
+    // Set up a time range
+    const earliest = authorArr.map(author => author.instances[0]).sort((a, b) => a.date - b.date)[0].date;
+    const latest = authorArr.map(author => author.instances[author.instances.length - 1])
+                             .sort((a, b) => b.date - a.date)[0].date;
+    const earliestWeek = new Date(earliest.getTime() - (earliest.getDay() * 24 * 60 * 60 * 1000));
+    const latestWeek = new Date(latest.getTime() - ((6 - latest.getDay()) * 24 * 60 * 60 * 1000));
+    
+    // Iterate through each week and add up the word instances in that week range
+    let currentWeek = new Date(earliestWeek.getTime());
+    let weeks = [];
+    while(currentWeek < latestWeek)
+    {
+        // Add 1 week's worth of milliseconds. This will probably mess up with time shifts
+        const nextWeek = new Date(currentWeek.getTime() + (7 * 24 * 60 * 60 * 1000));
+        weeks.push({
+            week: currentWeek.getTime(),
+            authors: authorArr.reduce((acc, current) =>
+            {
+                // Count the number of times the word was used in the time range
+                acc[current.name] = current.instances
+                                            .filter(instance => (instance.date >= currentWeek && instance.date < nextWeek))
+                                            .reduce((acc, current) => acc + current.count, 0);
+                return acc;
+            }, {})
+        });
+        currentWeek = nextWeek;
+    }
+    
+    // Create table where each row is a week
+    // Rows start with the week date and continue with the number of times each author used the tracked word in that week
+    let csv = [['week', ...authorArr.map(author => author.name)]];
+    for(const week of weeks)
+    {
+        let weekData = [(new Date(week.week)).toString().match(/\w+?\s\d{2}\s\d{4}/)[0]];
+        for(const author in week.authors)
+        {
+            if(!week.authors.hasOwnProperty(author))
+            {
+                continue;
+            }
+            weekData.push(week.authors[author]);
+        }
+        csv.push(weekData);
+    }
+    
+    return {authors: authorArr, table: csv, weeks};
+}
+
 (async () =>
 {
     // Create data loading directory and csv directory
@@ -54,101 +153,17 @@ async function loadMessages(dir)
     
     for(const word of words)
     {
-        let authors = {};
-        for(const message of messages)
-        {
-            if(!authors.hasOwnProperty(message.author.id))
-            {
-                authors[message.author.id] = {
-                    name: message.author.name,
-                    instances: [],
-                    total: 0
-                };
-            }
-            authors[message.author.id].total++;
-            
-            const matches = message.content.match(word);
-            if(matches)
-            {
-                authors[message.author.id].instances.push({
-                    date: new Date(message.timestamp),
-                    count: matches.length
-                });
-            }
-        }
+        const {authors, weeks, table} = await generateWordData(word, messages);
         
-        let authorArr = [];
-        for(const id in authors)
-        {
-            if(!authors.hasOwnProperty(id))
-            {
-                continue;
-            }
-            
-            authorArr.push(authors[id]);
-        }
-        
-        // Sort authors by rate and the instances by date
-        authorArr = authorArr.map(author =>
-        {
-            const wordTotal = author.instances.reduce((acc, current) => acc + current.count, 0);
-            const rate = wordTotal / author.total;
-            return {
-                name: author.name,
-                total: author.total,
-                instances: author.instances.sort((a, b) => a.date - b.date),
-                wordTotal,
-                rate
-            };
-        }).sort((a, b) => b.rate - a.rate);
-        
-        // Set up a time range
-        const earliest = authorArr.map(author => author.instances[0]).sort((a, b) => a.date - b.date)[0].date;
-        const latest = authorArr.map(author => author.instances[author.instances.length - 1])
-                                 .sort((a, b) => b.date - a.date)[0].date;
-        const earliestWeek = new Date(earliest.getTime() - (earliest.getDay() * 24 * 60 * 60 * 1000));
-        const latestWeek = new Date(latest.getTime() - ((6 - latest.getDay()) * 24 * 60 * 60 * 1000));
-        
-        // Iterate through each week and add up the word instances in that week range
-        let currentWeek = new Date(earliestWeek.getTime());
-        let weeks = [];
-        while(currentWeek < latestWeek)
-        {
-            const nextWeek = new Date(currentWeek.getTime() + (7 * 24 * 60 * 60 * 1000));
-            weeks.push({
-                week: currentWeek.getTime(),
-                authors: authorArr.reduce((acc, current) =>
-                {
-                    acc[current.name] = current.instances
-                                                .filter(instance => (instance.date >= currentWeek && instance.date < nextWeek))
-                                                .reduce((acc, current) => acc + current.count, 0);
-                    return acc;
-                }, {})
-            });
-            currentWeek = nextWeek;
-        }
-        
-        let csv = [['week', ...authorArr.map(author => author.name)]];
-        for(const week of weeks)
-        {
-            let weekData = [(new Date(week.week)).toString().match(/\w+?\s\d{2}\s\d{4}/)[0]];
-            for(const author in week.authors)
-            {
-                if(!week.authors.hasOwnProperty(author))
-                {
-                    continue;
-                }
-                weekData.push(week.authors[author]);
-            }
-            csv.push(weekData);
-        }
-        stringify(csv, async (err, output) =>
+        // Write weekly usage data to csv files for graphing
+        stringify(table, async (err, output) =>
         {
             await fs.writeFile(path.join('csv', sanitize(word.source) + '.csv'), output);
         });
         
+        // Output information table
         console.log(`${word.source}:`);
-        console.table(authorArr.map(author =>
+        console.table(authors.map(author =>
         {
             const apex = weeks.sort((a, b) => b.authors[author.name] - a.authors[author.name])[0];
             return {
