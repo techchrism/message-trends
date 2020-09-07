@@ -70,7 +70,6 @@ async function loadMessages(dir)
             const matches = message.content.match(word);
             if(matches)
             {
-                
                 authors[message.author.id].instances.push({
                     date: new Date(message.timestamp),
                     count: matches.length
